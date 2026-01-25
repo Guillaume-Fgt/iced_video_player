@@ -1,23 +1,22 @@
 use crate::{pipeline::VideoPrimitive, video::Video};
 use gstreamer as gst;
-use iced::{
-    Element,
-    advanced::{self, Widget, layout, widget},
-};
-use iced_wgpu::primitive::Renderer as PrimitiveRenderer;
+use cosmic::iced::{Element,advanced::{self,Widget,layout,widget},};
+use cosmic::{iced::{
+    advanced::{graphics::core::event::Status}
+}, iced_wgpu::primitive::Renderer as PrimitiveRenderer};
 use log::error;
 use std::{marker::PhantomData, sync::atomic::Ordering, time::Duration};
 use std::{sync::Arc, time::Instant};
 
 /// Video player widget which displays the current frame of a [`Video`](crate::Video).
-pub struct VideoPlayer<'a, Message, Theme = iced::Theme, Renderer = iced::Renderer>
+pub struct VideoPlayer<'a, Message, Theme = cosmic::iced::Theme, Renderer = cosmic::iced::Renderer>
 where
     Renderer: PrimitiveRenderer,
 {
     video: &'a Video,
-    content_fit: iced::ContentFit,
-    width: iced::Length,
-    height: iced::Length,
+    content_fit: cosmic::iced::ContentFit,
+    width: cosmic::iced::Length,
+    height: cosmic::iced::Length,
     on_end_of_stream: Option<Message>,
     on_new_frame: Option<Message>,
     on_subtitle_text: Option<Box<dyn Fn(Option<String>) -> Message + 'a>>,
@@ -33,9 +32,9 @@ where
     pub fn new(video: &'a Video) -> Self {
         VideoPlayer {
             video,
-            content_fit: iced::ContentFit::default(),
-            width: iced::Length::Shrink,
-            height: iced::Length::Shrink,
+            content_fit: cosmic::iced::ContentFit::default(),
+            width: cosmic::iced::Length::Shrink,
+            height: cosmic::iced::Length::Shrink,
             on_end_of_stream: None,
             on_new_frame: None,
             on_subtitle_text: None,
@@ -45,7 +44,7 @@ where
     }
 
     /// Sets the width of the `VideoPlayer` boundaries.
-    pub fn width(self, width: impl Into<iced::Length>) -> Self {
+    pub fn width(self, width: impl Into<cosmic::iced::Length>) -> Self {
         VideoPlayer {
             width: width.into(),
             ..self
@@ -53,7 +52,7 @@ where
     }
 
     /// Sets the height of the `VideoPlayer` boundaries.
-    pub fn height(self, height: impl Into<iced::Length>) -> Self {
+    pub fn height(self, height: impl Into<cosmic::iced::Length>) -> Self {
         VideoPlayer {
             height: height.into(),
             ..self
@@ -61,7 +60,7 @@ where
     }
 
     /// Sets the `ContentFit` of the `VideoPlayer`.
-    pub fn content_fit(self, content_fit: iced::ContentFit) -> Self {
+    pub fn content_fit(self, content_fit: cosmic::iced::ContentFit) -> Self {
         VideoPlayer {
             content_fit,
             ..self
@@ -113,15 +112,15 @@ where
     Message: Clone,
     Renderer: PrimitiveRenderer,
 {
-    fn size(&self) -> iced::Size<iced::Length> {
-        iced::Size {
-            width: iced::Length::Shrink,
-            height: iced::Length::Shrink,
+    fn size(&self) -> cosmic::iced::Size<cosmic::iced::Length> {
+        cosmic::iced::Size {
+            width: cosmic::iced::Length::Shrink,
+            height: cosmic::iced::Length::Shrink,
         }
     }
 
     fn layout(
-        &mut self,
+        &self,
         _tree: &mut widget::Tree,
         _renderer: &Renderer,
         limits: &layout::Limits,
@@ -129,16 +128,16 @@ where
         let (video_width, video_height) = self.video.size();
 
         // based on `Image::layout`
-        let image_size = iced::Size::new(video_width as f32, video_height as f32);
+        let image_size = cosmic::iced::Size::new(video_width as f32, video_height as f32);
         let raw_size = limits.resolve(self.width, self.height, image_size);
         let full_size = self.content_fit.fit(image_size, raw_size);
-        let final_size = iced::Size {
+        let final_size = cosmic::iced::Size {
             width: match self.width {
-                iced::Length::Shrink => f32::min(raw_size.width, full_size.width),
+                cosmic::iced::Length::Shrink => f32::min(raw_size.width, full_size.width),
                 _ => raw_size.width,
             },
             height: match self.height {
-                iced::Length::Shrink => f32::min(raw_size.height, full_size.height),
+                cosmic::iced::Length::Shrink => f32::min(raw_size.height, full_size.height),
                 _ => raw_size.height,
             },
         };
@@ -154,32 +153,32 @@ where
         _style: &advanced::renderer::Style,
         layout: advanced::Layout<'_>,
         _cursor: advanced::mouse::Cursor,
-        _viewport: &iced::Rectangle,
+        _viewport: &cosmic::iced::Rectangle,
     ) {
         let mut inner = self.video.write();
 
         // bounds based on `Image::draw`
-        let image_size = iced::Size::new(inner.width as f32, inner.height as f32);
+        let image_size = cosmic::iced::Size::new(inner.width as f32, inner.height as f32);
         let bounds = layout.bounds();
         let adjusted_fit = self.content_fit.fit(image_size, bounds.size());
-        let scale = iced::Vector::new(
+        let scale = cosmic::iced::Vector::new(
             adjusted_fit.width / image_size.width,
             adjusted_fit.height / image_size.height,
         );
         let final_size = image_size * scale;
 
         let position = match self.content_fit {
-            iced::ContentFit::None => iced::Point::new(
+            cosmic::iced::ContentFit::None => cosmic::iced::Point::new(
                 bounds.x + (image_size.width - adjusted_fit.width) / 2.0,
                 bounds.y + (image_size.height - adjusted_fit.height) / 2.0,
             ),
-            _ => iced::Point::new(
+            _ => cosmic::iced::Point::new(
                 bounds.center_x() - final_size.width / 2.0,
                 bounds.center_y() - final_size.height / 2.0,
             ),
         };
 
-        let drawing_bounds = iced::Rectangle::new(position, final_size);
+        let drawing_bounds = cosmic::iced::Rectangle::new(position, final_size);
 
         let upload_frame = inner.upload_frame.swap(false, Ordering::SeqCst);
 
@@ -192,7 +191,6 @@ where
             inner.set_av_offset(Instant::now() - last_frame_time);
         }
 
-        let render = |renderer: &mut Renderer| {
             renderer.draw_primitive(
                 drawing_bounds,
                 VideoPrimitive::new(
@@ -203,29 +201,23 @@ where
                     upload_frame,
                 ),
             );
-        };
 
-        if adjusted_fit.width > bounds.width || adjusted_fit.height > bounds.height {
-            renderer.with_layer(bounds, render);
-        } else {
-            render(renderer);
         }
-    }
 
-    fn update(
+    fn on_event(
         &mut self,
         _tree: &mut widget::Tree,
-        event: &iced::Event,
+        event: cosmic::iced::Event,
         _layout: advanced::Layout<'_>,
         _cursor: advanced::mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn advanced::Clipboard,
         shell: &mut advanced::Shell<'_, Message>,
-        _viewport: &iced::Rectangle,
-    ) {
+            _viewport: &cosmic::iced::Rectangle,
+        )->cosmic::iced::event::Status {
         let mut inner = self.video.write();
 
-        if let iced::Event::Window(iced::window::Event::RedrawRequested(_)) = event {
+        if let cosmic::iced::Event::Window(cosmic::iced::window::Event::RedrawRequested(_)) = event {
             if inner.restart_stream || (!inner.is_eos && !inner.paused()) {
                 let mut restart_stream = false;
                 let emit_eos = !inner.restart_stream;
@@ -287,12 +279,16 @@ where
                     }
                 }
 
-                shell.request_redraw();
+                shell.request_redraw(cosmic::iced::window::RedrawRequest::NextFrame);
             } else {
-                shell.request_redraw_at(iced::window::RedrawRequest::At(
+                shell.request_redraw(cosmic::iced::window::RedrawRequest::At(
                     Instant::now() + Duration::from_millis(32),
                 ));
             }
+            Status::Captured
+        } else {
+            Status::Ignored
+        
         }
     }
 }

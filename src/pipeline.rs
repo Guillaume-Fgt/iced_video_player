@@ -1,12 +1,12 @@
 use crate::video::Frame;
-use iced_wgpu::primitive::{Pipeline, Primitive};
-use iced_wgpu::wgpu;
+use cosmic::iced;
+use cosmic::iced_wgpu::{self, primitive::Primitive, wgpu};
 use std::{
-    collections::{BTreeMap, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap},
     num::NonZero,
     sync::{
-        Arc, Mutex,
         atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Mutex,
     },
 };
 
@@ -35,7 +35,7 @@ pub(crate) struct VideoPipeline {
     videos: BTreeMap<u64, VideoEntry>,
 }
 
-impl Pipeline for VideoPipeline {
+impl VideoPipeline {
     fn new(device: &wgpu::Device, _queue: &wgpu::Queue, format: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("iced_video_player shader"),
@@ -95,7 +95,7 @@ impl Pipeline for VideoPipeline {
             layout: Some(&layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),
+                entry_point: "vs_main",
                 buffers: &[],
                 compilation_options: Default::default(),
             },
@@ -108,7 +108,7 @@ impl Pipeline for VideoPipeline {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fs_main"),
+                entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format,
                     blend: None,
@@ -212,7 +212,6 @@ impl VideoPipeline {
                 mip_level_count: None,
                 base_array_layer: 0,
                 array_layer_count: None,
-                usage: None,
             });
 
             let view_uv = texture_uv.create_view(&wgpu::TextureViewDescriptor {
@@ -224,7 +223,6 @@ impl VideoPipeline {
                 mip_level_count: None,
                 base_array_layer: 0,
                 array_layer_count: None,
-                usage: None,
             });
 
             let instances = device.create_buffer(&wgpu::BufferDescriptor {
@@ -280,14 +278,14 @@ impl VideoPipeline {
         } = self.videos.get(&video_id).unwrap();
 
         queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
+            wgpu::ImageCopyTexture {
                 texture: texture_y,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             &frame[..(stride * height) as usize],
-            wgpu::TexelCopyBufferLayout {
+            wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(stride),
                 rows_per_image: Some(height),
@@ -300,14 +298,14 @@ impl VideoPipeline {
         );
 
         queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
+            wgpu::ImageCopyTexture {
                 texture: texture_uv,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             &frame[(stride * height) as usize..],
-            wgpu::TexelCopyBufferLayout {
+            wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: Some(stride),
                 rows_per_image: Some(height / 2),
@@ -364,7 +362,6 @@ impl VideoPipeline {
                         load: wgpu::LoadOp::Load,
                         store: wgpu::StoreOp::Store,
                     },
-                    depth_slice: None,
                 })],
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
@@ -417,16 +414,16 @@ impl VideoPrimitive {
 }
 
 impl Primitive for VideoPrimitive {
-    type Pipeline = VideoPipeline;
-
     fn prepare(
         &self,
-        pipeline: &mut VideoPipeline,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        _format: wgpu::TextureFormat,
+        storage: &mut iced_wgpu::primitive::Storage,
         bounds: &iced::Rectangle,
         viewport: &iced_wgpu::graphics::Viewport,
     ) {
+        let pipeline = storage.get_mut::<VideoPipeline>().unwrap();
         if self.upload_frame {
             let frame_guard = self.frame.lock().expect("lock frame mutex");
             let stride = frame_guard.stride();
@@ -456,11 +453,12 @@ impl Primitive for VideoPrimitive {
 
     fn render(
         &self,
-        pipeline: &Self::Pipeline,
         encoder: &mut wgpu::CommandEncoder,
+        storage: &iced_wgpu::primitive::Storage,
         target: &wgpu::TextureView,
         clip_bounds: &iced::Rectangle<u32>,
     ) {
+        let pipeline = storage.get::<VideoPipeline>().unwrap();
         pipeline.draw(target, encoder, clip_bounds, self.video_id);
     }
 }
