@@ -418,11 +418,14 @@ impl Primitive for VideoPrimitive {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        _format: wgpu::TextureFormat,
+        format: wgpu::TextureFormat,
         storage: &mut iced_wgpu::primitive::Storage,
         bounds: &iced::Rectangle,
         viewport: &iced_wgpu::graphics::Viewport,
     ) {
+        if !storage.has::<VideoPipeline>() {
+            storage.store(VideoPipeline::new(device, queue, format));
+        }
         let pipeline = storage.get_mut::<VideoPipeline>().unwrap();
         if self.upload_frame {
             let frame_guard = self.frame.lock().expect("lock frame mutex");
